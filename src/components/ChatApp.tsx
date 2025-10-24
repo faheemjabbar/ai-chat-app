@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { trpc } from '@/utils/trpc'
-import { Moon, Sun, Send, Loader2 } from 'lucide-react'
+import { Moon, Sun, Send, Loader2, AlertCircle } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
 interface Message {
@@ -23,11 +23,37 @@ export function ChatApp({ user }: { user: User }) {
 
   const supabase = createClient()
 
-  // Fetch models
-  const { data: models = [] } = trpc.models.getAvailable.useQuery()
+  // Fetch models with error handling
+  const { data: models = [], isLoading: modelsLoading, error: modelsError } = trpc.models.getAvailable.useQuery(
+    undefined,
+    {
+      retry: 3,
+    }
+  )
+
+  // Log models when they change
+  useEffect(() => {
+    if (models) {
+      console.log('Models loaded:', models)
+    }
+  }, [models])
+
+  // Log errors when they occur
+  useEffect(() => {
+    if (modelsError) {
+      console.error('Failed to load models:', modelsError)
+    }
+  }, [modelsError])
 
   // Fetch message history
-  const { data: messages = [], refetch: refetchMessages } = trpc.chat.history.useQuery()
+  const { data: messages = [], refetch: refetchMessages, error: messagesError } = trpc.chat.history.useQuery()
+
+  // Log message errors
+  useEffect(() => {
+    if (messagesError) {
+      console.error('Failed to load messages:', messagesError)
+    }
+  }, [messagesError])
 
   // Send message mutation
   const sendMessage = trpc.chat.send.useMutation({
@@ -35,7 +61,8 @@ export function ChatApp({ user }: { user: User }) {
       refetchMessages()
       setThinking(false)
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Send message error:', error)
       refetchMessages()
       setThinking(false)
     },
@@ -52,6 +79,7 @@ export function ChatApp({ user }: { user: User }) {
   useEffect(() => {
     if (models.length > 0 && !selectedModel) {
       setSelectedModel(models[0].tag)
+      console.log('Auto-selected model:', models[0].tag)
     }
   }, [models, selectedModel])
 
@@ -95,17 +123,38 @@ export function ChatApp({ user }: { user: User }) {
         <div className="max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">AI Chat</h1>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {models.map((model) => (
-                <option key={model.id} value={model.tag}>
-                  {model.tag}
-                </option>
-              ))}
-            </select>
+            
+            {modelsLoading ? (
+              <div className="flex items-center gap-2 px-3 py-1 text-sm text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Loading models...</span>
+              </div>
+            ) : modelsError ? (
+              <div className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 dark:text-red-400">
+                <AlertCircle className="w-4 h-4" />
+                <span>Failed to load models</span>
+              </div>
+            ) : models.length === 0 ? (
+              <div className="flex items-center gap-2 px-3 py-1 text-sm text-yellow-600 dark:text-yellow-400">
+                <AlertCircle className="w-4 h-4" />
+                <span>No models available</span>
+              </div>
+            ) : (
+              <select
+                value={selectedModel}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value)
+                  console.log('Model changed to:', e.target.value)
+                }}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {models.map((model) => (
+                  <option key={model.id} value={model.tag}>
+                    {model.tag}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           
           <div className="flex items-center gap-3">
@@ -197,13 +246,13 @@ export function ChatApp({ user }: { user: User }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
-              disabled={sendMessage.isPending}
+              placeholder={modelsLoading ? "Loading models..." : models.length === 0 ? "No models available" : "Type your message..."}
+              disabled={sendMessage.isPending || modelsLoading || models.length === 0}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={sendMessage.isPending || !input.trim()}
+              disabled={sendMessage.isPending || !input.trim() || !selectedModel || models.length === 0}
               className="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {sendMessage.isPending ? (

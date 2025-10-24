@@ -16,6 +16,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     defaultOptions: {
       queries: {
         staleTime: 5 * 1000,
+        refetchOnWindowFocus: false,
       },
     },
   }))
@@ -25,6 +26,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       links: [
         httpBatchLink({
           url: `${getBaseUrl()}/api/trpc`,
+          // 🔥 CRITICAL FIX: Force POST for all requests
+          methodOverride: 'POST',
           headers() {
             return {
               'content-type': 'application/json',
