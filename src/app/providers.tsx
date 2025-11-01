@@ -26,8 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       links: [
         httpBatchLink({
           url: `${getBaseUrl()}/api/trpc`,
-          // 🔥 CRITICAL FIX: Force POST for all requests
-          methodOverride: 'POST',
+          // ✅ REMOVED methodOverride - Let tRPC handle GET/POST automatically
           headers() {
             return {
               'content-type': 'application/json',

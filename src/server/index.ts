@@ -1,9 +1,8 @@
 import { router } from './trpc'
-import { modelsRouter } from './routers/models'
 import { chatRouter } from './routers/chat'
 
+// ✅ Removed models router - not needed anymore
 export const appRouter = router({
-  models: modelsRouter,
   chat: chatRouter,
 })
 

@@ -14,7 +14,15 @@ export const chatRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { modelTag, prompt } = input
 
-      // Save user message
+      // ✅ Validate model
+      if (modelTag !== 'gemini-2.5-flash') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Only Gemini 2.5 Flash is supported',
+        })
+      }
+
+      // ✅ Save user message
       const { error: userMsgError } = await ctx.supabase
         .from('messages')
         .insert({
@@ -25,17 +33,18 @@ export const chatRouter = router({
         })
 
       if (userMsgError) {
+        console.error('Failed to save user message:', userMsgError)
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to save user message',
+          message: 'Failed to save your message',
         })
       }
 
       try {
-        // Generate AI response
+        // ✅ Generate AI response
         const aiResponse = await generateResponse(modelTag, prompt)
 
-        // Save AI message
+        // ✅ Save AI message
         const { error: aiMsgError } = await ctx.supabase
           .from('messages')
           .insert({
@@ -45,14 +54,19 @@ export const chatRouter = router({
             content: aiResponse,
           })
 
-        if (aiMsgError) throw aiMsgError
+        if (aiMsgError) {
+          console.error('Failed to save AI message:', aiMsgError)
+          throw aiMsgError
+        }
 
         return {
           role: 'assistant' as const,
           content: aiResponse,
         }
-      } catch (error) {
-        // Save error message
+      } catch (error: any) {
+        console.error('AI generation error:', error)
+
+        // ✅ Save error message
         await ctx.supabase.from('messages').insert({
           user_id: ctx.user.id,
           model_tag: modelTag,
@@ -62,7 +76,7 @@ export const chatRouter = router({
 
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to generate AI response',
+          message: error.message || 'Failed to generate AI response',
         })
       }
     }),
@@ -74,7 +88,14 @@ export const chatRouter = router({
       .eq('user_id', ctx.user.id)
       .order('created_at', { ascending: true })
 
-    if (error) throw error
-    return data
+    if (error) {
+      console.error('Failed to fetch message history:', error)
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to load message history',
+      })
+    }
+
+    return data || []
   }),
 })

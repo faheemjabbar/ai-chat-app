@@ -4,17 +4,13 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function generateResponse(modelTag: string, prompt: string): Promise<string> {
   try {
-    // Map model tags to actual Gemini models
-    const modelMap: Record<string, string> = {
-      'gemini-2.5-flash': 'gemini-2.5-flash',
-      
-    };
+    // ✅ Only support Gemini 2.5 Flash
+    if (modelTag !== 'gemini-2.5-flash') {
+      throw new Error(`Unsupported model: ${modelTag}`);
+    }
 
-    const actualModel = modelMap[modelTag] || 'gemini-2.5-flash';
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const model = genAI.getGenerativeModel({ model: actualModel });
-
-    // ✅ NEW API structure (required for Gemini v1)
     const result = await model.generateContent({
       contents: [
         {
@@ -24,7 +20,6 @@ export async function generateResponse(modelTag: string, prompt: string): Promis
       ],
     });
 
-    // ✅ Extract text response safely
     const text = result.response.text();
     return text;
   } catch (error: any) {

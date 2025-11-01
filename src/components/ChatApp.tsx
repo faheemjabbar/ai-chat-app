@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { trpc } from '@/utils/trpc'
-import { Moon, Sun, Send, Loader2, AlertCircle } from 'lucide-react'
+import { Moon, Sun, Send, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
 interface Message {
@@ -14,48 +14,21 @@ interface Message {
   created_at: string
 }
 
+// ✅ Fixed: Hardcoded model - no user selection needed
+const FIXED_MODEL = 'gemini-2.5-flash'
+
 export function ChatApp({ user }: { user: User }) {
   const [darkMode, setDarkMode] = useState(false)
-  const [selectedModel, setSelectedModel] = useState('')
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const supabase = createClient()
 
-  // Fetch models with error handling
-  const { data: models = [], isLoading: modelsLoading, error: modelsError } = trpc.models.getAvailable.useQuery(
-    undefined,
-    {
-      retry: 3,
-    }
-  )
+  // ✅ Fetch message history
+  const { data: messages = [], refetch: refetchMessages } = trpc.chat.history.useQuery()
 
-  // Log models when they change
-  useEffect(() => {
-    if (models) {
-      console.log('Models loaded:', models)
-    }
-  }, [models])
-
-  // Log errors when they occur
-  useEffect(() => {
-    if (modelsError) {
-      console.error('Failed to load models:', modelsError)
-    }
-  }, [modelsError])
-
-  // Fetch message history
-  const { data: messages = [], refetch: refetchMessages, error: messagesError } = trpc.chat.history.useQuery()
-
-  // Log message errors
-  useEffect(() => {
-    if (messagesError) {
-      console.error('Failed to load messages:', messagesError)
-    }
-  }, [messagesError])
-
-  // Send message mutation
+  // ✅ Send message mutation
   const sendMessage = trpc.chat.send.useMutation({
     onSuccess: () => {
       refetchMessages()
@@ -77,13 +50,6 @@ export function ChatApp({ user }: { user: User }) {
   }, [darkMode])
 
   useEffect(() => {
-    if (models.length > 0 && !selectedModel) {
-      setSelectedModel(models[0].tag)
-      console.log('Auto-selected model:', models[0].tag)
-    }
-  }, [models, selectedModel])
-
-  useEffect(() => {
     scrollToBottom()
   }, [messages])
 
@@ -92,14 +58,14 @@ export function ChatApp({ user }: { user: User }) {
   }
 
   const handleSend = async () => {
-    if (!input.trim() || !selectedModel || sendMessage.isPending) return
+    if (!input.trim() || sendMessage.isPending) return
 
     const userInput = input
     setInput('')
     setThinking(true)
 
     sendMessage.mutate({
-      modelTag: selectedModel,
+      modelTag: FIXED_MODEL,
       prompt: userInput,
     })
   }
@@ -123,38 +89,10 @@ export function ChatApp({ user }: { user: User }) {
         <div className="max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">AI Chat</h1>
-            
-            {modelsLoading ? (
-              <div className="flex items-center gap-2 px-3 py-1 text-sm text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Loading models...</span>
-              </div>
-            ) : modelsError ? (
-              <div className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 dark:text-red-400">
-                <AlertCircle className="w-4 h-4" />
-                <span>Failed to load models</span>
-              </div>
-            ) : models.length === 0 ? (
-              <div className="flex items-center gap-2 px-3 py-1 text-sm text-yellow-600 dark:text-yellow-400">
-                <AlertCircle className="w-4 h-4" />
-                <span>No models available</span>
-              </div>
-            ) : (
-              <select
-                value={selectedModel}
-                onChange={(e) => {
-                  setSelectedModel(e.target.value)
-                  console.log('Model changed to:', e.target.value)
-                }}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {models.map((model) => (
-                  <option key={model.id} value={model.tag}>
-                    {model.tag}
-                  </option>
-                ))}
-              </select>
-            )}
+            {/* ✅ Removed model selector - using fixed Gemini 2.5 Flash */}
+            <span className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
+              Gemini 2.5 Flash
+            </span>
           </div>
           
           <div className="flex items-center gap-3">
@@ -188,7 +126,7 @@ export function ChatApp({ user }: { user: User }) {
           {messages.length === 0 ? (
             <div className="text-center text-gray-500 dark:text-gray-400 mt-12">
               <p className="text-lg">No messages yet. Start a conversation!</p>
-              <p className="text-sm mt-2">Select a model and type your message below.</p>
+              <p className="text-sm mt-2">Type your message below to chat with Gemini 2.5 Flash.</p>
             </div>
           ) : (
             messages.map((msg: Message) => (
@@ -246,13 +184,13 @@ export function ChatApp({ user }: { user: User }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={modelsLoading ? "Loading models..." : models.length === 0 ? "No models available" : "Type your message..."}
-              disabled={sendMessage.isPending || modelsLoading || models.length === 0}
+              placeholder="Type your message..."
+              disabled={sendMessage.isPending}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={sendMessage.isPending || !input.trim() || !selectedModel || models.length === 0}
+              disabled={sendMessage.isPending || !input.trim()}
               className="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {sendMessage.isPending ? (
