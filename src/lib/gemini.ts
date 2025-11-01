@@ -6,12 +6,11 @@ export async function generateResponse(modelTag: string, prompt: string): Promis
   try {
     // Map model tags to actual Gemini models
     const modelMap: Record<string, string> = {
-      'gemini-1.5-flash': 'gemini-1.5-flash',
-      'gemini-1.5-pro': 'gemini-1.5-pro',
-      'gpt-4o': 'gemini-1.5-flash', // fallback for fake model names
+      'gemini-2.5-flash': 'gemini-2.5-flash',
+      
     };
 
-    const actualModel = modelMap[modelTag] || 'gemini-1.5-flash';
+    const actualModel = modelMap[modelTag] || 'gemini-2.5-flash';
 
     const model = genAI.getGenerativeModel({ model: actualModel });
 
